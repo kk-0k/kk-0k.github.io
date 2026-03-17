@@ -177,8 +177,8 @@
         </div>
         <div class="ui-row">
             <label>birds</label>
-            <input type="range" id="birdCount" min="1" max="2000" value="2000" style="width: 80px;">
-            <label id="birdCountLabel" style="min-width: 30px; text-align: right;">2000</label>
+            <input type="range" id="birdCount" min="1" max="2000" value="1000" style="width: 80px;">
+            <label id="birdCountLabel" style="min-width: 30px; text-align: right;">1000</label>
         </div>
     </div>
 
@@ -950,7 +950,7 @@
             }
         }
 
-        const flock = Array.from({ length: 2000 }, () => new Boid()); 
+        const flock = Array.from({ length: 1000 }, () => new Boid()); 
 
         document.getElementById('birdCount').addEventListener('input', (e) => {
             const newCount = parseInt(e.target.value);
@@ -1073,7 +1073,7 @@
             // For every 600 units of built up energy, shift up 1 step on the Circle of Fifths (Max 6 steps / Tritone away)
             audioMetrics.keyModulation = Math.min(6, Math.floor(audioMetrics.shakeEnergy / 600));
 
-            let populationScale = Math.pow(flock.length / 2000, 1.5);
+            let populationScale = Math.pow(flock.length / 1000, 1.5);
             audioMetrics.swarmDensity = Math.max(0, 1.0 - (spread / 200)) * populationScale; 
             audioMetrics.chaos = Math.max(0, Math.min(1, (sumDv / flock.length) * 3));
             audioMetrics.cursorDensity = Math.max(0, Math.min(1.0, cursorFollowCount / 200));
