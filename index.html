@@ -357,10 +357,47 @@
             'locrian': [0, 1, 3, 5, 6, 8, 10]
         };
 
+        // --- Generative Audio Physics Metrics ---
+        let audioMetrics = { 
+            cutoff: 800, swarmDensity: 0, chaos: 0,
+            fac1Voices: 3, fac2Voices: 3, fac3Voices: 3, cursorDensity: 0,
+            risingDensity: 0, harmonyStrength: 0, harmonyType: 'vortex', harmonyPhase: 'none',
+            shakeEnergy: 0, keyModulation: 0, shakeCooldown: 0, // [CHANGED] Added cooldown for shaking
+            fac1Pos: {x: 0, y: 0, z: 0}, fac2Pos: {x: 0, y: 0, z: 0}, fac3Pos: {x: 0, y: 0, z: 0}
+        };
+
         function getScaleFrequencies() {
             let key = document.getElementById('keySelect').value;
             let mode = document.getElementById('modeSelect').value;
             let baseFreq = BASE_FREQS[key]; 
+
+            // Circle of Fifths Modulation based on cursor shake!
+            let modulationSteps = typeof audioMetrics !== 'undefined' ? audioMetrics.keyModulation : 0;
+            if (modulationSteps > 0) {
+                // Multiply base freq by a perfect fifth (+7 semitones) for each modulation step
+                baseFreq = baseFreq * Math.pow(2, (modulationSteps * 7) / 12);
+                
+                // Clamp the frequency to a reasonable octave range to prevent ear-piercing highs
+                while (baseFreq > BASE_FREQS['B'] * 2) {
+                    baseFreq /= 2;
+                }
+            }
+
+            // [CHANGED] ii -> V -> I Progression during Spiral Harmony!
+            // Starts in Supertonic (+2), transitions to Dominant (+7) during fade out, returns to Tonic
+            if (typeof audioMetrics !== 'undefined' && audioMetrics.harmonyType === 'spiral_disk' && audioMetrics.harmonyStrength > 0.01) {
+                if (audioMetrics.harmonyPhase === 'fadeout') {
+                    baseFreq = baseFreq * Math.pow(2, 7 / 12); // Dominant (V) during fade out
+                } else {
+                    baseFreq = baseFreq * Math.pow(2, 2 / 12); // Supertonic (ii) during hold
+                }
+                
+                // Clamp to prevent the frequency from getting too piercing
+                while (baseFreq > BASE_FREQS['B'] * 2) {
+                    baseFreq /= 2;
+                }
+            }
+
             let intervals = MODES[mode];
             let freqs = [];
             for (let octave = 0; octave < 5; octave++) {
@@ -389,12 +426,14 @@
                 let spacing = direction === -1 ? 0.08 : 0.12; 
                 let noteTime = now + (i * spacing); 
                 
+                // [CHANGED] Lowered the filter frequency to make it less bright/piercing
                 filter.type = 'lowpass';
-                filter.frequency.setValueAtTime(6000, noteTime);
-                filter.frequency.exponentialRampToValueAtTime(300, noteTime + 0.3);
+                filter.frequency.setValueAtTime(4000, noteTime);
+                filter.frequency.exponentialRampToValueAtTime(200, noteTime + 0.3);
                 
+                // [CHANGED] Drastically quieted the max volume of the pluck (0.045 -> 0.012)
                 gain.gain.setValueAtTime(0, noteTime);
-                gain.gain.linearRampToValueAtTime(0.045, noteTime + 0.015); 
+                gain.gain.linearRampToValueAtTime(0.012, noteTime + 0.015); 
                 gain.gain.exponentialRampToValueAtTime(0.0001, noteTime + 0.6); 
                 
                 osc.connect(filter);
@@ -431,20 +470,12 @@
             if (keyMap[pressedKey]) document.getElementById('keySelect').value = keyMap[pressedKey];
         });
 
-        let audioMetrics = { 
-            cutoff: 800, swarmDensity: 0, chaos: 0,
-            fac1Voices: 3, fac2Voices: 3, fac3Voices: 3, cursorDensity: 0,
-            risingDensity: 0, harmonyStrength: 0, harmonyType: 'vortex',
-            fac1Pos: {x: 0, y: 0, z: 0}, fac2Pos: {x: 0, y: 0, z: 0}, fac3Pos: {x: 0, y: 0, z: 0}
-        };
-
         function updateAudioEngine() {
             if (!audioInitialized) return;
 
             let now = audioCtx.currentTime;
             let freqs = getScaleFrequencies();
 
-            // [CHANGED] Add baseline harmony volume so the drone continues smoothly underneath the spiral
             let harmonyDroneVol = audioMetrics.harmonyStrength * 0.02; 
             let baseVol = Math.pow(audioMetrics.swarmDensity, 3.0) * 0.05 + harmonyDroneVol; 
             let chaosVol = Math.pow(audioMetrics.chaos, 2.0) * 0.4;
@@ -504,18 +535,25 @@
 
             let separationFactor = Math.max(0, 1.0 - (audioMetrics.swarmDensity * 2.0)); 
             let noCollisionFactor = Math.max(0, 1.0 - (audioMetrics.chaos * 3.0));
-            let dimVol = separationFactor * noCollisionFactor * 0.06; 
+            let humVol = separationFactor * noCollisionFactor * 0.06; 
             
-            let dimRoot = freqs[0] / 2; 
-            const dimIntervals = [0, 3, 6, 9]; 
+            // [CHANGED] Ominous volume swell during the spiral formation
+            if (audioMetrics.harmonyType === 'spiral_disk' && audioMetrics.harmonyStrength > 0) {
+                humVol += audioMetrics.harmonyStrength * 0.15; 
+            }
+            
+            // [CHANGED] Replaced diminished 7th with an ominous low perfect fourth
+            let humRoot = freqs[0] / 4; // Extremely deep root
+            const humIntervals = [0, 5, 12, 17]; // Root, Perfect 4th, Octave, Octave + Perfect 4th
             for (let i = 0; i < 4; i++) {
-                let pitch = dimRoot * Math.pow(2, dimIntervals[i] / 12);
+                let pitch = humRoot * Math.pow(2, humIntervals[i] / 12);
                 dimOscs[i].frequency.setTargetAtTime(pitch, now, 0.5);
-                dimGains[i].gain.setTargetAtTime(dimVol / 4, now, 0.5);
+                dimGains[i].gain.setTargetAtTime(humVol / 4, now, 0.5);
             }
 
             if (audioMetrics.harmonyType === 'spiral_disk' && audioMetrics.harmonyStrength > 0.01) {
-                let vRoot = freqs[0] * Math.pow(2, 7/12); 
+                // [CHANGED] Do not change keys! Stay on the root note
+                let vRoot = freqs[0]; 
                 let arpNumNotes = 15;
                 let arpTick = Math.floor(now * 14) % (arpNumNotes * 2 - 2); 
                 let arpIndex = arpTick < arpNumNotes ? arpTick : (arpNumNotes * 2 - 2 - arpTick); 
@@ -561,24 +599,20 @@
         let width = window.innerWidth;
         let height = window.innerHeight;
 
-        // [NEW] Load the actual image directly into the JS pipeline for true 3D sorting!
         const rockImg = new Image();
         rockImg.src = 'image-2.png';
         let rockImageLoaded = false;
         rockImg.onload = () => { rockImageLoaded = true; };
 
-        // Generative ASCII Sea Canvas
         const seaCanvas = document.createElement('canvas');
         const seaCtx = seaCanvas.getContext('2d');
         let lastSeaUpdate = 0; 
 
         function generateAsciiSea() {
-            // [CHANGED] Overshoot dimensions to perfectly hide all edges and borders
             seaCanvas.width = width + 100; 
             seaCanvas.height = (height * 0.4) + 50; 
             seaCtx.clearRect(0, 0, seaCanvas.width, seaCanvas.height);
             
-            // Smooth fade-in from the horizon
             let gradient = seaCtx.createLinearGradient(0, 0, 0, seaCanvas.height);
             gradient.addColorStop(0, 'rgba(204, 204, 204, 0)'); 
             gradient.addColorStop(0.15, 'rgba(204, 204, 204, 0.4)');
@@ -590,11 +624,9 @@
 
             while (currentY < seaCanvas.height) {
                 let progress = currentY / seaCanvas.height;
-                // [CHANGED] Exponential font scaling for 3D depth perception (tiny at horizon, large up close)
                 let fontSize = Math.floor(6 + 24 * Math.pow(progress, 1.8)); 
                 seaCtx.font = `${fontSize}px monospace`;
 
-                // Calculate chars needed to safely span the extended width
                 let estCharWidth = fontSize * 0.6;
                 let numChars = Math.floor(seaCanvas.width / estCharWidth) + 5;
 
@@ -604,7 +636,7 @@
                 }
                 
                 seaCtx.fillText(row, 0, currentY);
-                currentY += Math.max(fontSize * 0.8, 6); // Move down by line-height
+                currentY += Math.max(fontSize * 0.8, 6); 
             }
         }
 
@@ -612,12 +644,13 @@
             width = window.innerWidth;
             height = window.innerHeight;
             boidsCanvas.width = width; boidsCanvas.height = height;
-            generateAsciiSea(); // Re-render sea on resize
+            generateAsciiSea(); 
         }
         window.addEventListener('resize', resize);
         resize();
 
-        let mouse = { x: -1000, y: -1000 };
+        // [CHANGED] Added tracking for mouse velocity to register shakes
+        let mouse = { x: -1000, y: -1000, lastX: -1000, lastY: -1000 };
         window.addEventListener('mousemove', (e) => {
             mouse.x = e.clientX;
             mouse.y = e.clientY;
@@ -637,7 +670,6 @@
                 this.x = (width / 2) + Math.cos(spawnAngle) * spawnRadius * 1.8; 
                 this.y = (height * 0.3) + Math.sin(spawnAngle) * spawnRadius; 
                 
-                // Reduced initial spawn speed by 30%
                 this.vx = (Math.random() - 0.5) * 2.8; 
                 this.vy = (Math.random() - 0.5) * 2.8;
                 this.z = Math.random() * 100; 
@@ -728,7 +760,6 @@
 
                 let targetX, targetY;
                 
-                // [CHANGED] Shifted independent flight paths slightly up so they hover beautifully over the new sea
                 if (this.faction === 2) {
                     let orbitDriftX = Math.sin(time * 0.15) * (width * 0.35); 
                     let maxYDrift = (height * 0.25) - 40;
@@ -810,30 +841,25 @@
                     }
                 }
 
-                // --- [NEW] 3D Structure Avoidance & Sea Gradients ---
                 let rockCenterX = width / 2;
                 let rockCenterY = height * 0.45;
                 let distToRock = Math.hypot(this.x - rockCenterX, this.y - rockCenterY);
                 
-                // Repelled dynamically around the central Rock structure in 3D
                 if (distToRock < 160) {
                     let repel = Math.pow(1.0 - (distToRock / 160), 2);
                     this.vx += ((this.x - rockCenterX) / distToRock) * repel * 0.6;
                     this.vy += ((this.y - rockCenterY) / distToRock) * repel * 0.6;
-                    // Force the birds to pick a side (Background vs Foreground) and warp around it
                     this.dz += (this.z > 50 ? 1 : -1) * repel * 0.8; 
                 }
 
-                // Gradient Fear of the Sea Horizon (2/5ths from the bottom)
                 let seaLevel = height * 0.6;
                 let distToSea = seaLevel - this.y;
                 
                 if (distToSea > 0 && distToSea < 150) {
                     let seaFear = Math.pow(1.0 - (distToSea / 150), 2);
-                    this.vy -= seaFear * 0.4; // Push up to avoid skimming
-                    this.vx += (Math.random() - 0.5) * seaFear * 0.5; // Frightened scattering
+                    this.vy -= seaFear * 0.4; 
+                    this.vx += (Math.random() - 0.5) * seaFear * 0.5; 
                 } else if (distToSea <= 0) {
-                    // Firmly bounce them if they breach the water, but no harsh clamped lines
                     this.vy -= 0.6; 
                 }
 
@@ -877,9 +903,8 @@
                     this.vy *= climbDrag;
                 }
 
-                // Reduced global minimum and maximum speeds by 30%
-                const maxSpeed = 2.24; // Was 3.2
-                const minSpeed = 0.84; // Was 1.2
+                const maxSpeed = 2.24; 
+                const minSpeed = 0.84; 
                 const effectiveMax = maxSpeed * (1.0 + this.kineticBoost * 0.9);
                 let speed3D = Math.hypot(this.vx, this.vy, this.dz);
 
@@ -939,9 +964,10 @@
         });
 
         const HARMONY_INTERVAL  = 3000;  
-        const HARMONY_FADE      = 120;   
-        const HARMONY_HOLD      = 600;   
-        const HARMONY_TOTAL     = HARMONY_FADE * 2 + HARMONY_HOLD;
+        const HARMONY_FADE_IN   = 120;   // ~2.5 seconds to form
+        const HARMONY_HOLD      = 600;   // ~12 seconds of hold
+        const HARMONY_FADE_OUT  = 360;   // [CHANGED] Tripled! ~7.5 seconds of Dominant tension during decay
+        const HARMONY_TOTAL     = HARMONY_FADE_IN + HARMONY_HOLD + HARMONY_FADE_OUT;
 
         let harmonyCountdown  = HARMONY_INTERVAL + Math.floor(Math.random() * 300);
         let harmonyTimer      = 0;   
@@ -952,8 +978,7 @@
         function triggerHarmony() {
             const angle = (Math.random() * Math.PI * 0.6 - Math.PI * 0.3)
                         + (Math.random() > 0.5 ? 0 : Math.PI);
-            // Reduced harmony unification speed by 30%
-            const spd   = 1.26;   // Was 1.8
+            const spd   = 1.26;   
             harmonyVx   = Math.cos(angle) * spd;
             harmonyVy   = Math.sin(angle) * spd;
             harmonyTimer     = HARMONY_TOTAL;
@@ -961,15 +986,18 @@
             currentHarmonyType = Math.random() < 0.6 ? 'spiral_disk' : 'vortex';
         }
 
-        function extractPhysicsToAudio(currentHarmony) {
+        function extractPhysicsToAudio(currentHarmony, currentPhase) {
             if (flock.length === 0) {
                 audioMetrics.swarmDensity = 0;
                 audioMetrics.chaos = 0;
                 audioMetrics.risingDensity = 0;
                 audioMetrics.harmonyStrength = currentHarmony;
+                audioMetrics.harmonyPhase = currentPhase; // [NEW] Track phase for audio modulation
                 updateAudioEngine();
                 return;
             }
+
+            if (audioMetrics.shakeCooldown > 0) audioMetrics.shakeCooldown--;
 
             let sumDist = 0;
             let sumDv = 0;
@@ -1004,12 +1032,54 @@
             for (let b of flock) sumDist += Math.hypot(b.x - avgX, b.y - avgY);
             let spread = sumDist / flock.length;
             
+            // --- Tracking Mouse Velocity for Harmonic Key Change & Violent Reactions ---
+            if (mouse.lastX === -1000) { mouse.lastX = mouse.x; mouse.lastY = mouse.y; }
+            let currentMouseSpeed = Math.hypot(mouse.x - mouse.lastX, mouse.y - mouse.lastY);
+            mouse.lastX = mouse.x; 
+            mouse.lastY = mouse.y;
+
+            let distToSwarm = Math.hypot(mouse.x - avgX, mouse.y - avgY);
+            // If the mouse is aggressively shaken near the flock
+            if (distToSwarm < 400 && currentMouseSpeed > 5) {
+                audioMetrics.shakeEnergy += currentMouseSpeed;
+
+                // [NEW] Violent Reaction: Break out 10% squadrons if shaken aggressively
+                if (audioMetrics.shakeEnergy > 150 && audioMetrics.shakeCooldown <= 0) {
+                    audioMetrics.shakeCooldown = 60; // 1-second cooldown to prevent spamming
+                    let squadronCount = 0;
+                    let maxSquadron = Math.floor(flock.length * 0.1); // Exactly 10%
+                    
+                    for (let b of flock) {
+                        if (Math.random() < 0.15 && squadronCount < maxSquadron) {
+                            b.breakoutTimer = 50 + Math.random() * 50; 
+                            
+                            let dx = b.x - mouse.x;
+                            let dy = b.y - mouse.y;
+                            // Swoop away from the mouse, but spread widely in all directions
+                            let angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * Math.PI * 1.5; 
+                            let fleeSpeed = 5.0 + Math.random() * 3.0; // Fast speeds
+                            
+                            b.breakoutForce.x = Math.cos(angle) * fleeSpeed;
+                            b.breakoutForce.y = Math.sin(angle) * fleeSpeed;
+                            b.dz += (Math.random() - 0.5) * 4.0; // Violent vertical scattering
+                            
+                            squadronCount++;
+                        }
+                    }
+                }
+            }
+            audioMetrics.shakeEnergy *= 0.96; // Energy continuously decays back to zero when stopped
+            
+            // For every 600 units of built up energy, shift up 1 step on the Circle of Fifths (Max 6 steps / Tritone away)
+            audioMetrics.keyModulation = Math.min(6, Math.floor(audioMetrics.shakeEnergy / 600));
+
             let populationScale = Math.pow(flock.length / 2000, 1.5);
             audioMetrics.swarmDensity = Math.max(0, 1.0 - (spread / 200)) * populationScale; 
             audioMetrics.chaos = Math.max(0, Math.min(1, (sumDv / flock.length) * 3));
             audioMetrics.cursorDensity = Math.max(0, Math.min(1.0, cursorFollowCount / 200));
             audioMetrics.risingDensity = Math.max(0, Math.min(1.0, risingCount / (flock.length * 0.2 + 1)));
             audioMetrics.harmonyStrength = currentHarmony;
+            audioMetrics.harmonyPhase = currentPhase; // [NEW] Link phase
             audioMetrics.harmonyType = currentHarmonyType;
             
             audioMetrics.fac1Pos.x = f1c ? ((f1x / f1c) / width * 2 - 1) * 5 : 0;
@@ -1035,25 +1105,19 @@
             updateAudioEngine();
         }
 
-        // --- [CHANGED] 3D Rendering Pipeline ---
         function drawBoids(currentHarmony) {
             boidsCtx.clearRect(0, 0, width, height);
             
-            // 1. Update Pass (Calculate all physics before drawing to ensure Z-depth is accurate)
             for (let boid of flock) {
                 boid.update(flock, currentHarmony); 
             }
             
-            // 2. Draw Deep Background Birds (z < 50)
             for (let boid of flock) {
                 if (boid.z < 50) boid.draw(boidsCtx);
             }
             
-            // 3. Draw The ASCII Sea
-            // [CHANGED] Shifted left to hide borders, anchored beautifully
             boidsCtx.drawImage(seaCanvas, -50, height * 0.6 - 10);
             
-            // 4. Draw The Rock (Auto-swaps when image loads successfully on Github!)
             if (rockImageLoaded && rockImg.complete && rockImg.naturalWidth !== 0) {
                 let imgWidth = rockImg.width;
                 let imgHeight = rockImg.height;
@@ -1061,7 +1125,7 @@
                 let drawW = imgWidth * scale;
                 let drawH = imgHeight * scale;
                 let drawX = (width / 2) - (drawW / 2);
-                let drawY = (height * 0.6) - drawH * 0.95; // Anchors bottom edge 5% into the sea
+                let drawY = (height * 0.6) - drawH * 0.95; 
 
                 boidsCtx.globalCompositeOperation = 'multiply';
                 boidsCtx.globalAlpha = 0.85;
@@ -1090,7 +1154,6 @@
                 boidsCtx.fillText("PLACEHOLDER ROCK", width / 2, height * 0.5);
             }
             
-            // 5. Draw Foreground Birds (z >= 50)
             for (let boid of flock) {
                 if (boid.z >= 50) boid.draw(boidsCtx);
             }
@@ -1110,18 +1173,24 @@
                 }
             }
 
+            let harmonyPhase = 'none';
+
             if (harmonyTimer > 0) {
                 harmonyTimer--;
                 const elapsed = HARMONY_TOTAL - harmonyTimer;
 
-                if (elapsed < HARMONY_FADE) {
-                    const t = elapsed / HARMONY_FADE;
+                // [CHANGED] Uses independent, longer fade-out logic for the Dominant resolution
+                if (elapsed < HARMONY_FADE_IN) {
+                    const t = elapsed / HARMONY_FADE_IN;
                     harmonyStrength = t * t * (3 - 2 * t);
-                } else if (elapsed < HARMONY_FADE + HARMONY_HOLD) {
+                    harmonyPhase = 'fadein';
+                } else if (elapsed < HARMONY_FADE_IN + HARMONY_HOLD) {
                     harmonyStrength = 1.0;
+                    harmonyPhase = 'hold';
                 } else {
-                    const t = (elapsed - HARMONY_FADE - HARMONY_HOLD) / HARMONY_FADE;
+                    const t = (elapsed - HARMONY_FADE_IN - HARMONY_HOLD) / HARMONY_FADE_OUT;
                     harmonyStrength = 1.0 - t * t * (3 - 2 * t);
+                    harmonyPhase = 'fadeout'; // Flags the fadeout for the Dominant key shift
                 }
             } else {
                 harmonyStrength = 0;
@@ -1129,13 +1198,13 @@
                 if (harmonyCountdown <= 0) triggerHarmony();
             }
 
-            // [NEW] Trigger the ASCII sea character swap every ~0.6 seconds for a shimmering effect
             if (time - lastSeaUpdate > 0.6) {
                 generateAsciiSea();
                 lastSeaUpdate = time;
             }
 
-            extractPhysicsToAudio(harmonyStrength);
+            // [CHANGED] Pass the new harmony phase flag into the physics engine
+            extractPhysicsToAudio(harmonyStrength, harmonyPhase);
             drawBoids(harmonyStrength);
             time += 0.05; 
             requestAnimationFrame(animate);
