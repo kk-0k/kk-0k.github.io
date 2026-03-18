@@ -17,7 +17,7 @@
             bottom: 20px;
             left: 20px;
             font-family: 'Times New Roman', Times, serif;
-            font-size: 2.5rem; /* [CHANGED] Increased font size */
+            font-size: 2.5rem; 
             z-index: 10;
         }
 
@@ -62,7 +62,7 @@
         /* Essential to keep canvas behind the UI */
         #boids-canvas { z-index: 3; }
 
-        /* Custom Grayscale Range Slider */
+       
         input[type=range] {
             -webkit-appearance: none;
             background: transparent;
@@ -383,7 +383,7 @@
                 }
             }
 
-            // [CHANGED] ii -> V -> I Progression during Spiral Harmony!
+            // [CHANGED] ii -> V -> I Progression during Spiral Harmony
             // Starts in Supertonic (+2), transitions to Dominant (+7) during fade out, returns to Tonic
             if (typeof audioMetrics !== 'undefined' && audioMetrics.harmonyType === 'spiral_disk' && audioMetrics.harmonyStrength > 0.01) {
                 if (audioMetrics.harmonyPhase === 'fadeout') {
@@ -537,12 +537,12 @@
             let noCollisionFactor = Math.max(0, 1.0 - (audioMetrics.chaos * 3.0));
             let humVol = separationFactor * noCollisionFactor * 0.06; 
             
-            // [CHANGED] Ominous volume swell during the spiral formation
+            
             if (audioMetrics.harmonyType === 'spiral_disk' && audioMetrics.harmonyStrength > 0) {
                 humVol += audioMetrics.harmonyStrength * 0.15; 
             }
             
-            // [CHANGED] Replaced diminished 7th with an ominous low perfect fourth
+            
             let humRoot = freqs[0] / 4; // Extremely deep root
             const humIntervals = [0, 5, 12, 17]; // Root, Perfect 4th, Octave, Octave + Perfect 4th
             for (let i = 0; i < 4; i++) {
@@ -1043,7 +1043,7 @@
             if (distToSwarm < 400 && currentMouseSpeed > 5) {
                 audioMetrics.shakeEnergy += currentMouseSpeed;
 
-                // [NEW] Violent Reaction: Break out 10% squadrons if shaken aggressively
+                
                 if (audioMetrics.shakeEnergy > 150 && audioMetrics.shakeCooldown <= 0) {
                     audioMetrics.shakeCooldown = 60; // 1-second cooldown to prevent spamming
                     let squadronCount = 0;
