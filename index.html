@@ -1,1 +1,246 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>khalis khaleel | portal</title>
+    <style>
+        :root {
+            --bg: #ffffff;
+            --text-primary: #000000;
+            --text-secondary: #777777;
+            --accent: #dddddd;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: var(--bg);
+        }
+
+        /* --- Dashboard Styles --- */
+        #dashboard {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 40px;
+            box-sizing: border-box;
+            text-transform: lowercase;
+            font-family: 'Times New Roman', Times, serif;
+            z-index: 100;
+            background: white;
+            transition: transform 0.8s cubic-bezier(0.85, 0, 0.15, 1);
+        }
+
+        #dashboard.hide {
+            transform: translateY(-100%);
+        }
+
+        header h1 {
+            font-size: 2.8rem;
+            font-weight: normal;
+            margin: 0;
+            letter-spacing: -0.02em;
+        }
+
+        .main-content {
+            max-width: 600px;
+        }
+
+        .bio {
+            font-size: 1.2rem;
+            line-height: 1.5;
+            color: var(--text-primary);
+            margin-bottom: 40px;
+        }
+
+        .bio span {
+            color: var(--text-secondary);
+            display: block;
+            margin-top: 10px;
+            font-size: 0.95rem;
+            letter-spacing: 0.05em;
+        }
+
+        nav {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        nav button {
+            background: none;
+            border: none;
+            text-align: left;
+            padding: 0;
+            cursor: pointer;
+            color: var(--text-primary);
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 1.4rem;
+            width: fit-content;
+            position: relative;
+            transition: color 0.3s;
+        }
+
+        nav button::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 1px;
+            bottom: 0;
+            left: 0;
+            background-color: var(--text-primary);
+            transition: width 0.3s;
+        }
+
+        nav button:hover {
+            color: var(--text-secondary);
+        }
+
+        nav button:hover::after {
+            width: 100%;
+        }
+
+        footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            letter-spacing: 0.1em;
+        }
+
+        .coord { font-family: monospace; }
+
+        /* --- Back Button for Simulation --- */
+        #back-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 200;
+            background: none;
+            border: 1px solid rgba(0,0,0,0.1);
+            padding: 8px 12px;
+            font-family: 'Times New Roman', Times, serif;
+            cursor: pointer;
+            text-transform: lowercase;
+            display: none;
+            background: rgba(255,255,255,0.8);
+        }
+
+        /* --- Simulation Container --- */
+        #boids-container {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="back-btn" onclick="showDashboard()">← exit project</button>
+
+    <div id="dashboard">
+        <header>
+            <h1>khalis khaleel</h1>
+        </header>
+
+        <div class="main-content">
+            <div class="bio">
+                aerospace materials & process engineer based in montreal. 
+                <span></span>
+            </div>
+
+            <nav>
+                <button onclick="launchBoids()">01. boids</button>
+                <button onclick="alert('the new interactive project will be built here next.')">02. interactive project</button>
+                <button onclick="window.open('https://github.com/khaliskhaleel', '_blank')">03. source log</button>
+            </nav>
+        </div>
+
+        <footer>
+            <div>&copy;</div>
+        </footer>
+    </div>
+
+    <div id="boids-container">
+        </div>
+
+    <script>
+        const dashboard = document.getElementById('dashboard');
+        const container = document.getElementById('boids-container');
+        const backBtn = document.getElementById('back-btn');
+
+        function launchBoids() {
+            dashboard.classList.add('hide');
+            backBtn.style.display = 'block';
+            
+            // Injecting a simplified version of the boids script for the demo
+            // In your real site, this is just a folder redirect.
+            const frame = document.createElement('iframe');
+            // Using a blob/srcdoc to keep the demo self-contained
+            frame.srcdoc = `
+                <html>
+                <body style="margin:0; overflow:hidden; background:white; font-family:serif;">
+                    <canvas id="c"></canvas>
+                    <div style="position:absolute; bottom:20px; right:20px; color:#aaa; font-size:10px;">Boids Simulation Active</div>
+                    <script>
+                        const canvas = document.getElementById('c');
+                        const ctx = canvas.getContext('2d');
+                        let w, h;
+                        function resize() { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; }
+                        window.onresize = resize; resize();
+
+                        class B {
+                            constructor() { this.x = Math.random()*w; this.y = Math.random()*h; this.v = {x:(Math.random()-0.5)*2, y:(Math.random()-0.5)*2}; }
+                            u() { 
+                                this.x += this.v.x; this.y += this.v.y;
+                                if(this.x<0||this.x>w) this.v.x*=-1;
+                                if(this.y<0||this.y>h) this.v.y*=-1;
+                            }
+                            d() {
+                                ctx.beginPath();
+                                ctx.arc(this.x, this.y, 2, 0, 7);
+                                ctx.fill();
+                            }
+                        }
+                        const birds = Array.from({length:100}, () => new B());
+                        function draw() {
+                            ctx.clearRect(0,0,w,h);
+                            ctx.fillStyle = "rgba(0,0,0,0.4)";
+                            birds.forEach(b => { b.u(); b.d(); });
+                            requestAnimationFrame(draw);
+                        }
+                        draw();
+                    <\/script>
+                </body>
+                </html>
+            `;
+            container.innerHTML = '';
+            container.appendChild(frame);
+        }
+
+        function showDashboard() {
+            dashboard.classList.remove('hide');
+            backBtn.style.display = 'none';
+            setTimeout(() => { container.innerHTML = ''; }, 800);
+        }
+    </script>
+</body>
+</html>
